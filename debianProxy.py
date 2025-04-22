@@ -8,6 +8,9 @@ from flask import Flask, request, jsonify
 
 app = Flask(__name__)
 
+# 缓存所有IP和额度信息
+ip_cache = {}
+
 def get_all_ips():
     ips = []
     for iface in netifaces.interfaces():
@@ -31,21 +34,6 @@ def print_filtered_ips(ips):
     for ip in ips:
         print(ip)
 
-def curl_with_interface(ip, image_path):
-    url = "https://api.trace.moe/search"
-    cmd = [
-        'curl',
-        '--interface', ip,
-        '-F', f'image=@{image_path}',
-        url
-    ]
-    print(f"\nUsing IP: {ip}")
-    result = subprocess.run(cmd, capture_output=True)
-    print(result.stdout.decode('utf-8'))
-    if result.returncode != 0:
-        print(result.stderr.decode('utf-8'))
-    return result.stdout.decode('utf-8')
-
 def curl_me_with_interface(ip):
     url = "https://api.trace.moe/me"
     cmd = [
@@ -61,31 +49,66 @@ def curl_me_with_interface(ip):
         print(result.stderr.decode('utf-8'))
     return output
 
-def check_image(image_path):
+def curl_with_interface(ip, image_path):
+    url = "https://api.trace.moe/search"
+    cmd = [
+        'curl',
+        '--interface', ip,
+        '-F', f'image=@{image_path}',
+        url
+    ]
+    print(f"\nUsing IP: {ip}")
+    result = subprocess.run(cmd, capture_output=True)
+    print(result.stdout.decode('utf-8'))
+    if result.returncode != 0:
+        print(result.stderr.decode('utf-8'))
+    return result.stdout.decode('utf-8')
+
+def update_ip_quota_cache():
+    global ip_cache
     all_ips = get_all_ips()
     filtered_ips = filter_ips(all_ips)
+    ip_cache.clear()
     print_filtered_ips(filtered_ips)
-    if filtered_ips:
-        selected_ip = random.choice(filtered_ips)
-        print(f"\n随机选择IP进行curl请求：{selected_ip}")
-        result = curl_with_interface(selected_ip, image_path)
-        return result
-    else:
-        print("No matching IP found for curl.")
-        return "No matching IP found for curl."
+    print("\n初始化额度检查:")
+    for ip in filtered_ips:
+        try:
+            quota_info = curl_me_with_interface(ip)
+            data = json.loads(quota_info)
+            quota = data.get("quota", 1000)
+            quota_used = data.get("quotaUsed", 0)
+            available = quota - quota_used
+            ip_cache[ip] = {
+                "quota": quota,
+                "quotaUsed": quota_used,
+                "available": available
+            }
+            print(f"{ip} 剩余 {available} 次")
+        except Exception as e:
+            print(f"{ip} 获取额度失败: {e}")
+
+def get_available_ips():
+    # 只返回还有额度的IP
+    return [ip for ip, info in ip_cache.items() if info["available"] > 0]
 
 def call_me():
-    all_ips = get_all_ips()
-    filtered_ips = filter_ips(all_ips)
-    print_filtered_ips(filtered_ips)
-    if filtered_ips:
-        selected_ip = random.choice(filtered_ips)
-        print(f"\n随机选择IP进行curl请求(me)：{selected_ip}")
-        result = curl_me_with_interface(selected_ip)
-        return result
-    else:
-        print("No matching IP found for curl.")
-        return "No matching IP found for curl."
+    # 重新检查所有IP额度（可选，初始化时已检查）
+    update_ip_quota_cache()
+    return "IP额度已初始化完毕"
+
+def check_image(image_path):
+    available_ips = get_available_ips()
+    if not available_ips:
+        print("池内没有可用IP，程序终止。")
+        os._exit(1)  # 直接终止程序
+    # 随机选择一个可用IP
+    selected_ip = random.choice(available_ips)
+    print(f"\n随机选择可用IP进行curl请求：{selected_ip}")
+    result = curl_with_interface(selected_ip, image_path)
+    # 每次请求消耗一次额度
+    ip_cache[selected_ip]["quotaUsed"] += 1
+    ip_cache[selected_ip]["available"] -= 1
+    return result
 
 @app.route('/search', methods=['POST'])
 def upload_file():
@@ -102,7 +125,12 @@ def upload_file():
     try:
         # 调用图片检查方法
         result = check_image(filepath)
-        return jsonify({'result': result})
+        try:
+            json_result = json.loads(result)
+            return jsonify(json_result)
+        except Exception as e:
+            print(f"返回内容不是有效 JSON，内容为: {result}")
+            return jsonify({'error': 'Invalid JSON from trace.moe debian12proxy', 'raw': result}), 500
     finally:
         if os.path.exists(filepath):
             os.remove(filepath)
@@ -110,14 +138,10 @@ def upload_file():
 
 @app.route('/me', methods=['GET'])
 def me():
-    result = call_me()
-    try:
-        # 如果trace.moe返回的是JSON，尝试直接转发
-        return jsonify(**json.loads(result))
-    except Exception:
-        # 如果不是合法JSON则直接返回文本
-        return result
+    # 重新初始化额度池
+    msg = call_me()
+    return jsonify({'msg': msg, 'ip_cache': ip_cache})
 
 if __name__ == "__main__":
+    update_ip_quota_cache()  # 启动时初始化
     app.run(host='0.0.0.0', port=7755)
-

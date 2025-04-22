@@ -1,5 +1,2 @@
-fastapi
-uvicorn
-httpx
-netifaces
 flask
+netifaces
