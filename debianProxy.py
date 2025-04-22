@@ -25,7 +25,7 @@ def get_all_ips():
 def filter_ips(ips):
     filtered = []
     for ip in ips:
-        if ip.startswith('37.') or ip.startswith('172.') or ip.startswith('216.'):
+        if ip.startswith('37.') or ip.startswith('156.')  or ip.startswith('172.') or ip.startswith('216.'):
             filtered.append(ip)
     return filtered
 
