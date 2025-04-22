@@ -2,7 +2,10 @@ import os
 import subprocess
 import netifaces
 import time
-import random  # 新增
+import random
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
 
 def get_all_ips():
     ips = []
@@ -40,15 +43,53 @@ def curl_with_interface(ip, image_path):
     print(result.stdout.decode('utf-8'))
     if result.returncode != 0:
         print(result.stderr.decode('utf-8'))
+    return result.stdout.decode('utf-8')
 
-if __name__ == "__main__":
+def check_image(image_path):
     all_ips = get_all_ips()
     filtered_ips = filter_ips(all_ips)
     print_filtered_ips(filtered_ips)
-    image_path = 'demo.jpg'  # 确保demo.jpg在当前目录
     if filtered_ips:
         selected_ip = random.choice(filtered_ips)
         print(f"\n随机选择IP进行curl请求：{selected_ip}")
-        curl_with_interface(selected_ip, image_path)
+        result = curl_with_interface(selected_ip, image_path)
+        return result
     else:
         print("No matching IP found for curl.")
+        return "No matching IP found for curl."
+
+@app.route('/search', methods=['POST'])
+def upload_file():
+    upload_field = request.files.get('file') or request.files.get('image')
+    if not upload_field:
+        return jsonify({'error': 'No file part'}), 400
+    file = upload_field
+    if file.filename == '':
+        return jsonify({'error': 'No selected file'}), 400
+    filename = f"upload_{int(time.time())}_{random.randint(1000,9999)}.jpg"
+    filepath = os.path.join("/tmp", filename)
+    file.save(filepath)
+    print(f"Received file and saved as {filepath}")
+    try:
+        # 调用图片检查方法
+        result = check_image(filepath)
+        return jsonify({'result': result})
+    finally:
+        if os.path.exists(filepath):
+            os.remove(filepath)
+            print(f"Cache file {filepath} deleted.")
+
+@app.route('/me', methods=['GET'])
+def me():
+    # 你可以自定义这些值 或者做成动态取值
+    resp = {
+        "id": "157.230.11.36",
+        "priority": 0,
+        "concurrency": 1,
+        "quota": 1000,
+        "quotaUsed": 0
+    }
+    return jsonify(resp)
+
+if __name__ == "__main__":
+    app.run(host='0.0.0.0', port=7755)
