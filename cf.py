@@ -12,7 +12,7 @@ async def bypass_cf(url):
         await asyncio.sleep(8)  # 多等待几秒，确保验证结束
 
         content = await page.content()
-        print("页面内容片段：", content[:500])  # 打印前500字符
+        print("页面内容片段： ", content[:500])  # 打印前500字符
         await browser.close()
 
 if __name__ == "__main__":
