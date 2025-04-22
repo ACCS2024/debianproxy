@@ -3,6 +3,7 @@ import subprocess
 import netifaces
 import time
 import random
+import json
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -45,6 +46,21 @@ def curl_with_interface(ip, image_path):
         print(result.stderr.decode('utf-8'))
     return result.stdout.decode('utf-8')
 
+def curl_me_with_interface(ip):
+    url = "https://api.trace.moe/me"
+    cmd = [
+        'curl',
+        '--interface', ip,
+        url
+    ]
+    print(f"\nUsing IP: {ip} for /me")
+    result = subprocess.run(cmd, capture_output=True)
+    output = result.stdout.decode('utf-8')
+    print(output)
+    if result.returncode != 0:
+        print(result.stderr.decode('utf-8'))
+    return output
+
 def check_image(image_path):
     all_ips = get_all_ips()
     filtered_ips = filter_ips(all_ips)
@@ -53,6 +69,19 @@ def check_image(image_path):
         selected_ip = random.choice(filtered_ips)
         print(f"\n随机选择IP进行curl请求：{selected_ip}")
         result = curl_with_interface(selected_ip, image_path)
+        return result
+    else:
+        print("No matching IP found for curl.")
+        return "No matching IP found for curl."
+
+def call_me():
+    all_ips = get_all_ips()
+    filtered_ips = filter_ips(all_ips)
+    print_filtered_ips(filtered_ips)
+    if filtered_ips:
+        selected_ip = random.choice(filtered_ips)
+        print(f"\n随机选择IP进行curl请求(me)：{selected_ip}")
+        result = curl_me_with_interface(selected_ip)
         return result
     else:
         print("No matching IP found for curl.")
@@ -81,15 +110,14 @@ def upload_file():
 
 @app.route('/me', methods=['GET'])
 def me():
-    # 你可以自定义这些值 或者做成动态取值
-    resp = {
-        "id": "157.230.11.36",
-        "priority": 0,
-        "concurrency": 1,
-        "quota": 1000,
-        "quotaUsed": 0
-    }
-    return jsonify(resp)
+    result = call_me()
+    try:
+        # 如果trace.moe返回的是JSON，尝试直接转发
+        return jsonify(**json.loads(result))
+    except Exception:
+        # 如果不是合法JSON则直接返回文本
+        return result
 
 if __name__ == "__main__":
     app.run(host='0.0.0.0', port=7755)
+
