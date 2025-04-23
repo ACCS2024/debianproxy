@@ -6,6 +6,7 @@ git clone https://github.com/ACCS2024/debianproxy.git
 cd debianproxy
 
 pip install -r requirements.txt
+export PYTHONIOENCODING=utf-8
 python3 debianProxy.py
 ```
 []: # 
