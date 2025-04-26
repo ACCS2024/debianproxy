@@ -25,7 +25,7 @@ def get_all_ips():
 def filter_ips(ips):
     filtered = []
     for ip in ips:
-        if ip.startswith('37.') or ip.startswith('156.')  or ip.startswith('172.') or ip.startswith('216.'):
+        if ip.startswith('37.') or ip.startswith('156.') or ip.startswith('172.') or ip.startswith('216.'):
             filtered.append(ip)
     return filtered
 
@@ -42,11 +42,13 @@ def curl_me_with_interface(ip):
         url
     ]
     print(f"\nUsing IP: {ip} for /me")
-    result = subprocess.run(cmd, capture_output=True)
-    output = result.stdout.decode('utf-8')
+    result = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, error = result.communicate()
+    output = output.decode('utf-8')
+    error = error.decode('utf-8')
     print(output)
     if result.returncode != 0:
-        print(result.stderr.decode('utf-8'))
+        print(error)
     return output
 
 def curl_with_interface(ip, image_path):
@@ -58,11 +60,13 @@ def curl_with_interface(ip, image_path):
         url
     ]
     print(f"\nUsing IP: {ip}")
-    result = subprocess.run(cmd, capture_output=True)
-    print(result.stdout.decode('utf-8'))
+    result = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    output, error = result.communicate()
+    output = output.decode('utf-8')
+    print(output)
     if result.returncode != 0:
-        print(result.stderr.decode('utf-8'))
-    return result.stdout.decode('utf-8')
+        print(error)
+    return output
 
 def update_ip_quota_cache():
     global ip_cache
@@ -130,7 +134,7 @@ def upload_file():
             return jsonify(json_result)
         except Exception as e:
             print(f"返回内容不是有效 JSON，内容为: {result}")
-            return jsonify({'error': 'Invalid JSON from trace.moe debian12proxy', 'raw': result}), 500
+            return jsonify({'error': 'Invalid JSON from trace.moe centosProxy', 'raw': result}), 500
     finally:
         if os.path.exists(filepath):
             os.remove(filepath)
