@@ -49,6 +49,7 @@ fi
 cd debianproxy
 python -m pip install -r requirements.txt
 export PYTHONIOENCODING=utf-8
+
 python3 debianProxy.py
 ```
 
@@ -57,7 +58,7 @@ python3 debianProxy.py
 如果不想使用虚拟环境，可以直接运行：
 
 ```bash
-python3 debianproxy.py
+python3 debianProxy.py
 ```
 
 ## 注意事项
